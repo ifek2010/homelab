@@ -1,0 +1,5 @@
+{ "index": { "_index": "logs-index" } }
+{ "@timestamp": "2026-01-24T12:00:00Z", "level": "INFO", "message": "Log 1" }
+{ "index": { "_index": "logs-index" } }
+{ "@timestamp": "2026-01-24T12:00:01Z", "level": "WARN", "message": "Log 2" }
+

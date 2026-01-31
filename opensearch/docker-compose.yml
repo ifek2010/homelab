@@ -1,0 +1,93 @@
+services:
+  opensearch-node1:
+    image: opensearchproject/opensearch:${OPENSEARCH_IMAGE_VERSION}
+    container_name: opensearch-node1
+    environment:
+      # Core cluster settings
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms${OPENSEARCH_NODE_MEMORY} -Xmx${OPENSEARCH_NODE_MEMORY}"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
+      - DISABLE_PERFORMANCE_ANALYZER_AGENT_CLI=true
+      
+      # Security plugin: TLS on transport
+      - plugins.security.ssl.transport.enabled=true
+      - plugins.security.ssl.transport.pemcert_filepath=certificates/node1.pem
+      - plugins.security.ssl.transport.pemkey_filepath=certificates/node1-key.pem
+      - plugins.security.ssl.transport.pemtrustedcas_filepath=certificates/root-ca.pem
+      - plugins.security.ssl.transport.enforce_hostname_verification=false
+
+      # Security plugin: TLS on HTTP
+      - plugins.security.ssl.http.enabled=true
+      - plugins.security.ssl.http.pemcert_filepath=certificates/node1.pem
+      - plugins.security.ssl.http.pemkey_filepath=certificates/node1-key.pem
+      - plugins.security.ssl.http.pemtrustedcas_filepath=certificates/root-ca.pem
+      - plugins.security.ssl.http.clientauth_mode=OPTIONAL
+
+      # Security plugin: DNs (must match your certs)
+      - plugins.security.authcz.admin_dn=["CN=admin,OU=Opensearch,O=Homelab,L=Toronto,ST=Ontario,C=CA"]
+      - plugins.security.nodes_dn=["CN=node1,OU=Opensearch,O=Homelab,L=Toronto,ST=Ontario,C=CA"]
+
+      # Security plugin: index/init behavior
+      - plugins.security.allow_default_init_securityindex=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+
+      # Optional: audit, snapshot, REST roles
+      - plugins.security.audit.type=internal_opensearch
+      - plugins.security.enable_snapshot_restore_privilege=true
+      - plugins.security.check_snapshot_restore_write_privileges=true
+      - plugins.security.restapi.roles_enabled=["all_access","security_rest_api_access"]
+
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - ./opensearch-data:/usr/share/opensearch/data
+      - ./certificates:/usr/share/opensearch/config/certificates:ro
+      - ./config/node/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml:ro
+      - ./config/node/config.yml:/usr/share/opensearch/config/opensearch-security/config.yml
+      - ./config/node/roles_mapping.yml:/usr/share/opensearch/config/opensearch-security/roles_mapping.yml
+      - ./config/node/plugin-stats-metadata:/usr/share/opensearch/config/opensearch-performance-analyzer/plugin-stats-metadata
+    ports:
+      - 9200:9200
+      - 9600:9600
+    networks:
+      - opensearch-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k --silent https://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  opensearch-dashboard:
+    image: opensearchproject/opensearch-dashboards:${OPENSEARCH_IMAGE_VERSION}
+    container_name: opensearch-dashboard
+    environment:
+      - OPENSEARCH_HOSTS=["https://opensearch-node1:9200"]
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
+      - "OPENSEARCH_JAVA_OPTS=-Xms${OPENSEARCH_DASHBOARD_MEMORY} -Xmx${OPENSEARCH_DASHBOARD_MEMORY}"
+    ports:
+      - 5601:5601
+    volumes:
+      - ./opensearch-data:/usr/share/opensearch/data
+      - ./config/dashboard/dashboards-config.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+      - ./certificates:/usr/share/opensearch-dashboards/config/certificates:ro
+    networks:
+      - opensearch-net
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+
+volumes:
+  opensearch-data:
+
+networks:
+  opensearch-net:
+    driver: bridge

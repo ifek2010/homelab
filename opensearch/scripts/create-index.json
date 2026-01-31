@@ -1,0 +1,10 @@
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "level":      { "type": "keyword" },
+      "message":    { "type": "text" },
+      "service":    { "type": "keyword" }
+    }
+  }
+}
